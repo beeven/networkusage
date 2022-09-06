@@ -9,31 +9,38 @@ internal class Program
     {
         var collector = new NetworkUsageCollector();
 
-        System.Console.WriteLine("Network Usage:");
-        System.Console.Write("\x1b[s");
-        
+        IAsyncEnumerable<Dictionary<string, NetworkUsageCollector.NetworkSpeedStat>>? statStream = null;
+        TimeSpan interval = TimeSpan.FromSeconds(1);
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            await foreach (var stats in collector.GetOSXNetworkUsage(TimeSpan.FromSeconds(1), interfaces: "en0"))
+            statStream = collector.GetOSXNetworkUsage(interval, interfaces: "en0");
+
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            statStream = collector.GetLinuxNetworkUsage(interval, interfaces: "eth0");
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+
+        }
+
+        if (statStream is not null)
+        {
+            System.Console.WriteLine("Network Usage:");
+            System.Console.Write("\x1b[s");
+            await foreach (var stats in statStream)
             {
                 System.Console.Write("\x1b[u\x1b[J");
                 foreach (var item in stats)
                 {
                     System.Console.WriteLine($"{item.Key}:\t\tRx: {item.Value.RxBytesPerSec.FormatNetworkSpeed()}\tTx: {item.Value.TxBytesPerSec.FormatNetworkSpeed()}");
                 }
-                //System.Console.Write($"\x1b[{stats.Count}A");
             }
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-
         }
     }
 
-    
-   
+
+
 }
