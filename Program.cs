@@ -23,7 +23,7 @@ internal class Program
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-
+            statStream = collector.GetWindowsNetworkUsage(interval);            
         }
 
         if (statStream is not null)

@@ -1,6 +1,7 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public class NetworkUsageCollector
 {
@@ -108,6 +109,44 @@ public class NetworkUsageCollector
         }
     }
 
+    public async IAsyncEnumerable<Dictionary<string, NetworkSpeedStat>> GetWindowsNetworkUsage(TimeSpan interval = default(TimeSpan), [EnumeratorCancellation] CancellationToken cancellationToken = default(CancellationToken), params string[] interfaces)
+    {
+        if(!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            throw new PlatformNotSupportedException();
+
+        if(interval == default(TimeSpan))
+        {
+            interval = TimeSpan.FromSeconds(1);
+        }
+
+        if(interfaces.Length == 0)
+        {
+            var category = new PerformanceCounterCategory("Network Interface");
+            interfaces = category.GetInstanceNames();
+        }
+
+        var ifnames = interfaces.Where(x => PerformanceCounterCategory.InstanceExists(x, "Network Interface")).ToArray();
+
+        var counters = new Dictionary<string, (PerformanceCounter rx,PerformanceCounter tx)>();
+        foreach(var ifname in ifnames)
+        {
+            counters[ifname] = (new PerformanceCounter("Network Interface", "Bytes Received/sec", ifname, true), new PerformanceCounter("Network Interface", "Bytes Sent/sec", ifname, true));
+        }
+
+        var networkSpeedStats = new Dictionary<string, NetworkSpeedStat>();
+
+        while(!cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(interval, cancellationToken);
+            foreach(var counter in counters)
+            {
+                networkSpeedStats[counter.Key] = new NetworkSpeedStat(counter.Value.rx.NextValue(), counter.Value.tx.NextValue());
+            }
+            yield return networkSpeedStats;
+            
+        }
+
+    }
 
     public record struct NetworkSpeedStat(double RxBytesPerSec, double TxBytesPerSec);
 
